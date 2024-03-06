@@ -2,15 +2,16 @@
 name = "bench-prom-decode"
 version = "0.1.0"
 edition = "2021"
+
 [lib]
 name = "bench_prom"
 crate-type = ["lib"]
 
 [dependencies]
-greptime-proto = { git = "https://github.com/GreptimeTeam/greptime-proto", branch = "main" }
-bytes = "1.5"
 base64 = "0.22"
+bytes = "1.5"
 deno_core = "0.267"
+greptime-proto = { git = "https://github.com/GreptimeTeam/greptime-proto", branch = "main" }
 prost = "0.12"
 
 [dev-dependencies]
