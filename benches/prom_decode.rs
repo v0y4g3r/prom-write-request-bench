@@ -5,6 +5,7 @@ use greptime_proto::prometheus::remote::WriteRequest;
 use prost::Message;
 use bench_prom::prom_write_request::PromWriteRequest;
 use bench_prom::write_request::to_grpc_row_insert_requests;
+use bench_prom::repeated_field::Clear;
 
 fn bench_decode_prom_request(c: &mut Criterion) {
     let mut d = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -29,6 +30,7 @@ fn bench_decode_prom_request(c: &mut Criterion) {
         .bench_function("prom_write_request", |b| {
             b.iter(|| {
                 let data = data.clone();
+                prom_request.clear();
                 prom_request.merge(data).unwrap();
                 prom_request.as_row_insert_requests();
             });
