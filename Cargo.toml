@@ -12,6 +12,7 @@ base64 = "0.22"
 bytes = "1.5"
 deno_core = "0.267"
 greptime-proto = { git = "https://github.com/GreptimeTeam/greptime-proto", branch = "main" }
+hashbrown = "0.14"
 prost = "0.12"
 
 [dev-dependencies]

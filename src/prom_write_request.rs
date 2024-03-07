@@ -46,7 +46,6 @@ impl PromLabel {
         tag: u32,
         wire_type: WireType,
         buf: &mut B,
-        ctx: DecodeContext,
     ) -> Result<(), DecodeError>
         where
             B: Buf,
@@ -69,13 +68,13 @@ impl PromLabel {
                     error
                 })
             }
-            _ => prost::encoding::skip_field(wire_type, tag, buf, ctx),
+            _ => prost::encoding::skip_field(wire_type, tag, buf, Default::default()),
         }
     }
 }
 
 #[inline(always)]
-fn merge_bytes<B>(
+fn  merge_bytes<B>(
     value: &mut Bytes,
     buf: &mut B,
 ) -> Result<(), DecodeError>
@@ -112,7 +111,6 @@ impl PromTimeSeries {
         tag: u32,
         wire_type: WireType,
         buf: &mut B,
-        ctx: DecodeContext,
     ) -> Result<(), DecodeError>
         where
             B: Buf,
@@ -135,7 +133,7 @@ impl PromTimeSeries {
                 let limit = remaining - len as usize;
                 while buf.remaining() > limit {
                     let (tag, wire_type) = decode_key(buf)?;
-                    label.merge_field(tag, wire_type, buf, ctx.clone())?;
+                    label.merge_field(tag, wire_type, buf)?;
                 }
                 if buf.remaining() != limit {
                     return Err(DecodeError::new("delimited length exceeded"));
@@ -150,15 +148,15 @@ impl PromTimeSeries {
             }
             2u32 => {
                 let sample = self.samples.push_default();
-                merge(WireType::LengthDelimited, sample, buf, ctx).map_err(|mut error| {
+                merge(WireType::LengthDelimited, sample, buf, DecodeContext::default()).map_err(|mut error| {
                     error.push(STRUCT_NAME, "samples");
                     error
                 })?;
                 Ok(())
             }
             // skip exemplars
-            3u32 => prost::encoding::skip_field(wire_type, tag, buf, ctx),
-            _ => prost::encoding::skip_field(wire_type, tag, buf, ctx),
+            3u32 => prost::encoding::skip_field(wire_type, tag, buf, DecodeContext::default()),
+            _ => prost::encoding::skip_field(wire_type, tag, buf, DecodeContext::default()),
         }
     }
 
@@ -199,7 +197,6 @@ impl PromWriteRequest {
             Self: Sized,
     {
         const STRUCT_NAME: &str = "PromWriteRequest";
-        let ctx = DecodeContext::default();
         while buf.has_remaining() {
             let (tag, wire_type) = decode_key(&mut buf)?;
             assert_eq!(WireType::LengthDelimited, wire_type);
@@ -219,7 +216,7 @@ impl PromWriteRequest {
                     while buf.remaining() > limit {
                         let (tag, wire_type) = decode_key(&mut buf)?;
                         self.series
-                            .merge_field(tag, wire_type, &mut buf, ctx.clone())?;
+                            .merge_field(tag, wire_type, &mut buf)?;
                     }
                     if buf.remaining() != limit {
                         return Err(DecodeError::new("delimited length exceeded"));
@@ -228,9 +225,9 @@ impl PromWriteRequest {
                 }
                 3u32 => {
                     // we can ignore metadata for now.
-                    prost::encoding::skip_field(wire_type, tag, &mut buf, ctx.clone())?;
+                    prost::encoding::skip_field(wire_type, tag, &mut buf, DecodeContext::default())?;
                 }
-                _ => prost::encoding::skip_field(wire_type, tag, &mut buf, ctx.clone())?,
+                _ => prost::encoding::skip_field(wire_type, tag, &mut buf, DecodeContext::default())?,
             }
         }
         Ok(())
