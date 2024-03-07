@@ -18,7 +18,7 @@ fn bench_decode_prom_request(c: &mut Criterion) {
     let mut prom_request = PromWriteRequest::default();
 
     c.benchmark_group("decode")
-        .measurement_time(Duration::from_secs(3))
+        .measurement_time(Duration::from_secs(10))
         .bench_function("write_request", |b| {
             b.iter(|| {
                 request.clear();

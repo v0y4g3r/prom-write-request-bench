@@ -37,8 +37,6 @@ pub struct PromLabel {
 
 impl Clear for PromLabel {
     fn clear(&mut self) {
-        self.name.clear();
-        self.value.clear();
     }
 }
 
@@ -58,7 +56,7 @@ impl PromLabel {
             1u32 => {
                 // decode label name
                 let value = &mut self.name;
-                prost::encoding::bytes::merge(wire_type, value, buf, ctx).map_err(|mut error| {
+                merge_bytes(value, buf).map_err(|mut error| {
                     error.push(STRUCT_NAME, "name");
                     error
                 })
@@ -66,8 +64,8 @@ impl PromLabel {
             2u32 => {
                 // decode label value
                 let value = &mut self.value;
-                prost::encoding::bytes::merge(wire_type, value, buf, ctx).map_err(|mut error| {
-                    error.push(STRUCT_NAME, "value");
+                merge_bytes(value, buf).map_err(|mut error| {
+                    error.push(STRUCT_NAME, "name");
                     error
                 })
             }
@@ -75,6 +73,23 @@ impl PromLabel {
         }
     }
 }
+
+#[inline(always)]
+fn merge_bytes<B>(
+    value: &mut Bytes,
+    buf: &mut B,
+) -> Result<(), DecodeError>
+    where
+        B: Buf,
+{
+    let len = decode_varint(buf)?;
+    if len > buf.remaining() as u64 {
+        return Err(DecodeError::new("buffer underflow"));
+    }
+    *value = buf.copy_to_bytes(len as usize);
+    Ok(())
+}
+
 
 #[derive(Default)]
 pub struct PromTimeSeries {
