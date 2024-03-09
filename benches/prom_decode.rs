@@ -1,11 +1,10 @@
-use std::time::Duration;
-use bytes::Bytes;
-use criterion::{Criterion, criterion_group, criterion_main};
+use bench_prom::prom_write_request::{copy_to_bytes, PromWriteRequest};
+use bench_prom::repeated_field::Clear;
+use bench_prom::write_request::to_grpc_row_insert_requests;
+use bytes::{ Bytes};
+use criterion::{criterion_group, criterion_main, Criterion};
 use greptime_proto::prometheus::remote::WriteRequest;
 use prost::Message;
-use bench_prom::prom_write_request::PromWriteRequest;
-use bench_prom::write_request::to_grpc_row_insert_requests;
-use bench_prom::repeated_field::Clear;
 
 fn bench_decode_prom_request(c: &mut Criterion) {
     let mut d = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -18,7 +17,6 @@ fn bench_decode_prom_request(c: &mut Criterion) {
     let mut prom_request = PromWriteRequest::default();
 
     c.benchmark_group("decode")
-        .measurement_time(Duration::from_secs(10))
         .bench_function("write_request", |b| {
             b.iter(|| {
                 request.clear();
@@ -33,6 +31,14 @@ fn bench_decode_prom_request(c: &mut Criterion) {
                 prom_request.clear();
                 prom_request.merge(data).unwrap();
                 prom_request.as_row_insert_requests();
+            });
+        })
+        .bench_function("slice_bytes", |b| {
+            b.iter(|| {
+                let mut data = data.clone();
+                for _ in 0..128766 {
+                    let _ = copy_to_bytes(&mut data, 1);
+                }
             });
         });
 }

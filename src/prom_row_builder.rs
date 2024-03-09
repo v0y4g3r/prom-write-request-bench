@@ -15,14 +15,17 @@
 use std::string::ToString;
 
 use greptime_proto::prometheus::remote::Sample;
-use greptime_proto::v1::{ColumnDataType, ColumnSchema, Row, RowInsertRequest, RowInsertRequests, Rows, SemanticType, Value};
 use greptime_proto::v1::value::ValueData;
+use greptime_proto::v1::{
+    ColumnDataType, ColumnSchema, Row, RowInsertRequest, RowInsertRequests, Rows, SemanticType,
+    Value,
+};
 use hashbrown::hash_map::Entry;
 use hashbrown::HashMap;
 
-use crate::{GREPTIME_TIMESTAMP, GREPTIME_VALUE};
 use crate::prom_write_request::PromLabel;
 use crate::repeated_field::Clear;
+use crate::{GREPTIME_TIMESTAMP, GREPTIME_VALUE};
 
 /// [TablesBuilder] serves as an intermediate container to build [RowInsertRequests].
 #[derive(Default)]
@@ -182,8 +185,8 @@ impl TableBuilder {
 mod tests {
     use bytes::Bytes;
     use greptime_proto::prometheus::remote::Sample;
-    use greptime_proto::v1::Value;
     use greptime_proto::v1::value::ValueData;
+    use greptime_proto::v1::Value;
 
     use crate::prom_row_builder::TableBuilder;
     use crate::prom_write_request::PromLabel;

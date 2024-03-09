@@ -12,10 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashMap;
-use greptime_proto::v1::{ColumnDataType, ColumnSchema, Row, RowInsertRequest, RowInsertRequests, Rows, SemanticType, Value};
 use greptime_proto::v1::value::ValueData;
-
+use greptime_proto::v1::{
+    ColumnDataType, ColumnSchema, Row, RowInsertRequest, RowInsertRequests, Rows, SemanticType,
+    Value,
+};
+use std::collections::HashMap;
 
 pub struct TableData {
     schema: Vec<ColumnSchema>,
@@ -125,7 +127,7 @@ impl MultiTableData {
 
 pub fn write_tags(
     table_data: &mut TableData,
-    kvs: impl Iterator<Item=(String, String)>,
+    kvs: impl Iterator<Item = (String, String)>,
     one_row: &mut Vec<Value>,
 ) {
     let ktv_iter = kvs.map(|(k, v)| (k, ColumnDataType::String, ValueData::StringValue(v)));
@@ -134,7 +136,7 @@ pub fn write_tags(
 
 pub fn write_fields(
     table_data: &mut TableData,
-    fields: impl Iterator<Item=(String, ColumnDataType, ValueData)>,
+    fields: impl Iterator<Item = (String, ColumnDataType, ValueData)>,
     one_row: &mut Vec<Value>,
 ) {
     write_by_semantic_type(table_data, SemanticType::Field, fields, one_row)
@@ -160,7 +162,7 @@ pub fn write_f64(
 fn write_by_semantic_type(
     table_data: &mut TableData,
     semantic_type: SemanticType,
-    ktv_iter: impl Iterator<Item=(String, ColumnDataType, ValueData)>,
+    ktv_iter: impl Iterator<Item = (String, ColumnDataType, ValueData)>,
     one_row: &mut Vec<Value>,
 ) {
     let TableData {
@@ -188,7 +190,6 @@ fn write_by_semantic_type(
             });
         }
     }
-
 }
 
 pub fn write_ts_millis(
@@ -222,21 +223,13 @@ pub fn write_ts_millis(
             ..Default::default()
         });
         column_indexes.insert(name, index);
-        one_row.push(Value{
-            value_data: ts_val
-        });
+        one_row.push(Value { value_data: ts_val });
     }
 }
 
 #[inline]
-fn check_schema(
-    datatype: ColumnDataType,
-    semantic_type: SemanticType,
-    schema: &ColumnSchema,
-) {
-    assert_eq!(
-        schema.datatype, datatype as i32,
-    );
+fn check_schema(datatype: ColumnDataType, semantic_type: SemanticType, schema: &ColumnSchema) {
+    assert_eq!(schema.datatype, datatype as i32,);
 
     assert_eq!(schema.semantic_type, semantic_type as i32);
 }

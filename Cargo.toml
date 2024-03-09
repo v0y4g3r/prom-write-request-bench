@@ -14,6 +14,7 @@ deno_core = "0.267"
 greptime-proto = { git = "https://github.com/GreptimeTeam/greptime-proto", branch = "main" }
 hashbrown = "0.14"
 prost = "0.12"
+lazy_static = "1.4"
 
 [dev-dependencies]
 criterion = "0.5"

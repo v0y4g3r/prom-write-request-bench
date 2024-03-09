@@ -236,8 +236,8 @@ impl<T> RepeatedField<T> {
     /// assert_eq!(vec, RepeatedField::from(vec![2, 4]));
     /// ```
     pub fn retain<F>(&mut self, f: F)
-        where
-            F: FnMut(&T) -> bool,
+    where
+        F: FnMut(&T) -> bool,
     {
         // suboptimal
         self.vec.truncate(self.len);
@@ -281,8 +281,8 @@ impl<T> RepeatedField<T> {
     /// Sort elements with given comparator.
     #[inline]
     pub fn sort_by<F>(&mut self, compare: F)
-        where
-            F: Fn(&T, &T) -> Ordering,
+    where
+        F: Fn(&T, &T) -> Ordering,
     {
         self.as_mut_slice().sort_by(compare)
     }

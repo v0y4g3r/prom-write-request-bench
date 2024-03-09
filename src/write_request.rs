@@ -1,7 +1,7 @@
+use crate::row_writer::MultiTableData;
+use crate::{row_writer, GREPTIME_TIMESTAMP, GREPTIME_VALUE, METRIC_NAME_LABEL};
 use greptime_proto::prometheus::remote::{Sample, WriteRequest};
 use greptime_proto::v1::RowInsertRequests;
-use crate::{GREPTIME_TIMESTAMP, GREPTIME_VALUE, METRIC_NAME_LABEL, row_writer};
-use crate::row_writer::MultiTableData;
 
 pub fn to_grpc_row_insert_requests(request: &WriteRequest) -> (RowInsertRequests, usize) {
     let mut multi_table_data = MultiTableData::new();

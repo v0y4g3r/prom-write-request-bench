@@ -13,14 +13,15 @@
 // limitations under the License.
 
 use std::ops::Deref;
+use std::slice;
 
+use crate::METRIC_NAME_LABEL_BYTES;
 use bytes::{Buf, Bytes};
 use greptime_proto::prometheus::remote::Sample;
 use greptime_proto::v1::RowInsertRequests;
 use prost::encoding::message::merge;
 use prost::encoding::{decode_key, decode_varint, DecodeContext, WireType};
 use prost::DecodeError;
-use crate::METRIC_NAME_LABEL_BYTES;
 
 use crate::prom_row_builder::TablesBuilder;
 use crate::repeated_field::{Clear, RepeatedField};
@@ -36,20 +37,16 @@ pub struct PromLabel {
 }
 
 impl Clear for PromLabel {
-    fn clear(&mut self) {
-    }
+    fn clear(&mut self) {}
 }
 
 impl PromLabel {
-    pub fn merge_field<B>(
+    pub fn merge_field(
         &mut self,
         tag: u32,
         wire_type: WireType,
-        buf: &mut B,
-    ) -> Result<(), DecodeError>
-        where
-            B: Buf,
-    {
+        buf: &mut Bytes,
+    ) -> Result<(), DecodeError> {
         const STRUCT_NAME: &str = "PromLabel";
         match tag {
             1u32 => {
@@ -74,21 +71,44 @@ impl PromLabel {
 }
 
 #[inline(always)]
-fn  merge_bytes<B>(
-    value: &mut Bytes,
-    buf: &mut B,
-) -> Result<(), DecodeError>
-    where
-        B: Buf,
-{
+pub fn copy_to_bytes(data: &mut Bytes, len: usize) -> Bytes {
+    if len == data.remaining() {
+        core::mem::replace(data, Bytes::new())
+    } else {
+        let ret = slice(data, len);
+        data.advance(len);
+        ret
+    }
+}
+
+#[inline(always)]
+fn slice(data: &mut Bytes, end: usize) -> Bytes {
+    let len = data.len();
+    assert!(
+        end <= len,
+        "range end out of bounds: {:?} <= {:?}",
+        end,
+        len,
+    );
+
+    if end == 0 {
+        return Bytes::new();
+    }
+
+    let ptr = data.as_ptr();
+    let x = unsafe { slice::from_raw_parts(ptr, end) };
+    Bytes::from_static(x)
+}
+
+#[inline(always)]
+fn merge_bytes(value: &mut Bytes, buf: &mut Bytes) -> Result<(), DecodeError> {
     let len = decode_varint(buf)?;
     if len > buf.remaining() as u64 {
         return Err(DecodeError::new("buffer underflow"));
     }
-    *value = buf.copy_to_bytes(len as usize);
+    *value = copy_to_bytes(buf, len as usize);
     Ok(())
 }
-
 
 #[derive(Default)]
 pub struct PromTimeSeries {
@@ -106,15 +126,12 @@ impl Clear for PromTimeSeries {
 }
 
 impl PromTimeSeries {
-    pub fn merge_field<B>(
+    pub fn merge_field(
         &mut self,
         tag: u32,
         wire_type: WireType,
-        buf: &mut B,
-    ) -> Result<(), DecodeError>
-        where
-            B: Buf,
-    {
+        buf: &mut Bytes,
+    ) -> Result<(), DecodeError> {
         const STRUCT_NAME: &str = "PromTimeSeries";
         match tag {
             1u32 => {
@@ -148,7 +165,13 @@ impl PromTimeSeries {
             }
             2u32 => {
                 let sample = self.samples.push_default();
-                merge(WireType::LengthDelimited, sample, buf, DecodeContext::default()).map_err(|mut error| {
+                merge(
+                    WireType::LengthDelimited,
+                    sample,
+                    buf,
+                    DecodeContext::default(),
+                )
+                .map_err(|mut error| {
                     error.push(STRUCT_NAME, "samples");
                     error
                 })?;
@@ -191,11 +214,7 @@ impl PromWriteRequest {
         self.table_data.as_insert_requests()
     }
 
-    pub fn merge<B>(&mut self, mut buf: B) ->Result<(), DecodeError>
-        where
-            B: Buf,
-            Self: Sized,
-    {
+    pub fn merge(&mut self, mut buf: Bytes) -> Result<(), DecodeError> {
         const STRUCT_NAME: &str = "PromWriteRequest";
         while buf.has_remaining() {
             let (tag, wire_type) = decode_key(&mut buf)?;
@@ -215,8 +234,7 @@ impl PromWriteRequest {
                     let limit = remaining - len as usize;
                     while buf.remaining() > limit {
                         let (tag, wire_type) = decode_key(&mut buf)?;
-                        self.series
-                            .merge_field(tag, wire_type, &mut buf)?;
+                        self.series.merge_field(tag, wire_type, &mut buf)?;
                     }
                     if buf.remaining() != limit {
                         return Err(DecodeError::new("delimited length exceeded"));
@@ -225,9 +243,16 @@ impl PromWriteRequest {
                 }
                 3u32 => {
                     // we can ignore metadata for now.
-                    prost::encoding::skip_field(wire_type, tag, &mut buf, DecodeContext::default())?;
+                    prost::encoding::skip_field(
+                        wire_type,
+                        tag,
+                        &mut buf,
+                        DecodeContext::default(),
+                    )?;
                 }
-                _ => prost::encoding::skip_field(wire_type, tag, &mut buf, DecodeContext::default())?,
+                _ => {
+                    prost::encoding::skip_field(wire_type, tag, &mut buf, DecodeContext::default())?
+                }
             }
         }
         Ok(())
@@ -238,11 +263,11 @@ impl PromWriteRequest {
 mod tests {
     use std::collections::{HashMap, HashSet};
 
+    use crate::prom_write_request::PromWriteRequest;
     use bytes::Bytes;
     use greptime_proto::prometheus::remote::WriteRequest;
     use greptime_proto::v1::RowInsertRequests;
     use prost::Message;
-    use crate::prom_write_request::PromWriteRequest;
 
     use crate::repeated_field::Clear;
     use crate::write_request::to_grpc_row_insert_requests;
@@ -296,8 +321,8 @@ mod tests {
     #[test]
     fn test_decode_write_request() {
         let mut d = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        d.push("benches");
-        d.push("write_request.pb.data");
+        d.push("assets");
+        d.push("1709380533560664458.data");
         let data = Bytes::from(std::fs::read(d).unwrap());
 
         let (expected_rows, expected_samples) =
