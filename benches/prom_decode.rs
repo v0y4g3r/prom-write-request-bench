@@ -1,9 +1,10 @@
 use bench_prom::prom_write_request::{copy_to_bytes, PromWriteRequest};
 use bench_prom::repeated_field::Clear;
 use bench_prom::write_request::to_grpc_row_insert_requests;
-use bytes::{ Bytes};
+use bytes::Bytes;
 use criterion::{criterion_group, criterion_main, Criterion};
 use greptime_proto::prometheus::remote::WriteRequest;
+use greptime_proto::v1::Value;
 use prost::Message;
 
 fn bench_decode_prom_request(c: &mut Criterion) {
@@ -32,12 +33,31 @@ fn bench_decode_prom_request(c: &mut Criterion) {
                 prom_request.merge(data).unwrap();
                 prom_request.as_row_insert_requests();
             });
-        })
+        });
+
+    c.benchmark_group("ops")
         .bench_function("slice_bytes", |b| {
             b.iter(|| {
                 let mut data = data.clone();
                 for _ in 0..128766 {
                     let _ = copy_to_bytes(&mut data, 1);
+                }
+            });
+        })
+        .bench_function("vec_build", |b| {
+            b.iter(|| {
+                for i in 0..10000 {
+                    let data = vec![Value { value_data: None }; 8];
+                    drop(data);
+                }
+            })
+        })
+        .bench_function("vec_clone", |b| {
+            let data = vec![Value { value_data: None }; 8];
+            b.iter(|| {
+                for i in 0..10000 {
+                    let data_cloned = data.clone();
+                    drop(data_cloned);
                 }
             });
         });

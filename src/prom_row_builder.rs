@@ -119,7 +119,6 @@ impl TableBuilder {
     /// Adds a set of labels and samples to table builder.
     pub(crate) fn add_labels_and_samples(&mut self, labels: &[PromLabel], samples: &[Sample]) {
         let mut row = vec![Value { value_data: None }; self.col_indexes.len()];
-
         for PromLabel { name, value } in labels {
             // safety: we expect all labels are UTF-8 encoded strings.
             let tag_name = unsafe { String::from_utf8_unchecked(name.to_vec()) };
