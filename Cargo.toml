@@ -10,15 +10,13 @@ crate-type = ["lib"]
 [dependencies]
 base64 = "0.22"
 bytes = "1.5"
-deno_core = "0.267"
 greptime-proto = { git = "https://github.com/GreptimeTeam/greptime-proto", branch = "main" }
-hashbrown = "0.14"
-prost = "0.12"
 lazy_static = "1.4"
+prost = "0.12"
 
 [dev-dependencies]
 criterion = "0.5"
 
 [[bench]]
-name = "bench_prom"
+name = "prom_decode"
 harness = false
