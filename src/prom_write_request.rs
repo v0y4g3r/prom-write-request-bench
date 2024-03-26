@@ -1,3 +1,6 @@
+use crate::repeated_field::{Clear, RepeatedField};
+use prost::encoding::{decode_key, decode_varint, WireType};
+use prost::DecodeError;
 use std::fmt;
 
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -5,6 +8,13 @@ use std::fmt;
 pub struct Label {
     pub name: String,
     pub value: String,
+}
+
+impl Clear for Label {
+    fn clear(&mut self) {
+        self.value.clear();
+        self.name.clear();
+    }
 }
 
 impl prost::Message for Label {
@@ -31,7 +41,7 @@ impl prost::Message for Label {
     where
         B: bytes::Buf,
     {
-        const STRUCT_NAME: & str = "Label";
+        const STRUCT_NAME: &str = "Label";
         match tag {
             1u32 => {
                 let value = &mut self.name;
@@ -41,7 +51,7 @@ impl prost::Message for Label {
                 })
             }
             2u32 => {
-                let  value = &mut self.value;
+                let value = &mut self.value;
                 prost::encoding::string::merge(wire_type, value, buf, ctx).map_err(|mut error| {
                     error.push(STRUCT_NAME, "value");
                     error
@@ -67,7 +77,7 @@ impl prost::Message for Label {
         self.value.clear();
     }
 }
-impl ::core::default::Default for Label {
+impl Default for Label {
     fn default() -> Self {
         Label {
             name: prost::alloc::string::String::new(),
@@ -126,7 +136,7 @@ impl prost::Message for Sample {
     where
         B: prost::bytes::Buf,
     {
-        const STRUCT_NAME: & str = "Sample";
+        const STRUCT_NAME: &str = "Sample";
         match tag {
             1u32 => {
                 let value = &mut self.value;
@@ -171,7 +181,7 @@ impl ::core::default::Default for Sample {
     }
 }
 
-impl ::core::fmt::Debug for Sample {
+impl fmt::Debug for Sample {
     fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
         let mut builder = f.debug_struct("Sample");
         let builder = {
@@ -207,13 +217,27 @@ pub struct Sample {
     pub timestamp: i64,
 }
 
+impl Clear for Sample {
+    fn clear(&mut self) {
+        self.value = 0.0;
+        self.timestamp = 0;
+    }
+}
+
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq)]
 pub struct TimeSeries {
     /// For a timeseries to be valid, and for the samples and exemplars
     /// to be ingested by the remote system properly, the labels field is required.
-    pub labels: Vec<Label>,
-    pub samples: Vec<Sample>,
+    pub labels: RepeatedField<Label>,
+    pub samples: RepeatedField<Sample>,
+}
+
+impl Clear for TimeSeries {
+    fn clear(&mut self) {
+        self.labels.clear();
+        self.samples.clear();
+    }
 }
 
 impl prost::Message for TimeSeries {
@@ -240,25 +264,44 @@ impl prost::Message for TimeSeries {
     where
         B: bytes::Buf,
     {
-        const STRUCT_NAME: & str = "TimeSeries";
+        const STRUCT_NAME: &str = "TimeSeries";
         match tag {
             1u32 => {
-                let value = &mut self.labels;
-                prost::encoding::message::merge_repeated(wire_type, value, buf, ctx).map_err(
-                    |mut error| {
-                        error.push(STRUCT_NAME, "labels");
-                        error
-                    },
-                )
+                // decode labels
+                let label = self.labels.push_default();
+
+                let len = decode_varint(buf).map_err(|mut error| {
+                    error.push(STRUCT_NAME, "labels");
+                    error
+                })?;
+                let remaining = buf.remaining();
+                if len > remaining as u64 {
+                    return Err(DecodeError::new("buffer underflow"));
+                }
+
+                let limit = remaining - len as usize;
+                while buf.remaining() > limit {
+                    let (tag, wire_type) = decode_key(buf)?;
+                    label.merge_field(tag, wire_type, buf, ctx.clone())?;
+                }
+                if buf.remaining() != limit {
+                    return Err(DecodeError::new("delimited length exceeded"));
+                }
+                Ok(())
             }
             2u32 => {
-                let value = &mut self.samples;
-                prost::encoding::message::merge_repeated(wire_type, value, buf, ctx).map_err(
-                    |mut error| {
-                        error.push(STRUCT_NAME, "samples");
-                        error
-                    },
+                let sample = self.samples.push_default();
+                prost::encoding::message::merge(
+                    WireType::LengthDelimited,
+                    sample,
+                    buf,
+                    ctx.clone(),
                 )
+                .map_err(|mut error| {
+                    error.push(STRUCT_NAME, "samples");
+                    error
+                })?;
+                Ok(())
             }
             _ => prost::encoding::skip_field(wire_type, tag, buf, ctx),
         }
@@ -299,7 +342,13 @@ impl fmt::Debug for TimeSeries {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq)]
 pub struct WriteRequest {
-    pub timeseries: Vec<TimeSeries>,
+    pub timeseries: RepeatedField<TimeSeries>,
+}
+
+impl Clear for WriteRequest {
+    fn clear(&mut self) {
+        self.timeseries.clear();
+    }
 }
 
 impl prost::Message for WriteRequest {
@@ -324,16 +373,25 @@ impl prost::Message for WriteRequest {
     where
         B: bytes::Buf,
     {
-        const STRUCT_NAME: & str = "WriteRequest";
+        const STRUCT_NAME: &str = "WriteRequest";
         match tag {
             1u32 => {
-                let value = &mut self.timeseries;
-                prost::encoding::message::merge_repeated(wire_type, value, buf, ctx).map_err(
-                    |mut error| {
-                        error.push(STRUCT_NAME, "timeseries");
-                        error
-                    },
-                )
+                let series = self.timeseries.push_default();
+                let len = decode_varint(buf).map_err(|mut e| {
+                    e.push(STRUCT_NAME, "timeseries");
+                    e
+                })?;
+                let remaining = buf.remaining();
+                if len > remaining as u64 {
+                    return Err(DecodeError::new("buffer underflow"));
+                }
+
+                let limit = remaining - len as usize;
+                while buf.remaining() > limit {
+                    let (tag, wire_type) = decode_key(buf)?;
+                    series.merge_field(tag, wire_type, buf, ctx.clone())?;
+                }
+                Ok(())
             }
             _ => prost::encoding::skip_field(wire_type, tag, buf, ctx),
         }
@@ -363,5 +421,44 @@ impl ::core::fmt::Debug for WriteRequest {
             builder.field("timeseries", &wrapper)
         };
         builder.finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::prom_write_request::WriteRequest;
+    use bytes::Bytes;
+    use prost::Message;
+
+    #[test]
+    fn test_decode_correctness() {
+        let mut d = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        d.push("assets");
+        d.push("1709380533560664458.data");
+        let data = Bytes::from(std::fs::read(d).unwrap());
+        let mut proto_request = greptime_proto::prometheus::remote::WriteRequest::default();
+        proto_request.merge(data.clone()).unwrap();
+
+        let mut request = WriteRequest::default();
+        request.merge(data).unwrap();
+        assert_eq!(proto_request.timeseries.len(), request.timeseries.len());
+
+        for ts_idx in 0..request.timeseries.len() {
+            let proto_ts: &greptime_proto::prometheus::remote::TimeSeries =
+                &proto_request.timeseries[ts_idx];
+            let ts = &request.timeseries[ts_idx];
+            assert_eq!(proto_ts.labels.len(), ts.labels.len());
+            assert_eq!(proto_ts.samples.len(), ts.samples.len());
+
+            for idx in 0..proto_ts.labels.len(){
+                assert_eq!(&proto_ts.labels[idx].name, &ts.labels[idx].name);
+                assert_eq!(&proto_ts.labels[idx].value, &ts.labels[idx].value);
+            }
+
+            for idx in 0..proto_ts.samples.len(){
+                assert_eq!(&proto_ts.samples[idx].value, &ts.samples[idx].value);
+                assert_eq!(&proto_ts.samples[idx].timestamp, &ts.samples[idx].timestamp);
+            }
+        }
     }
 }
