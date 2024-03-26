@@ -1,13 +1,15 @@
 use crate::repeated_field::{Clear, RepeatedField};
-use prost::encoding::{decode_key, decode_varint, WireType};
+use bytes::{Buf, Bytes};
+use greptime_proto::prometheus::remote::Sample;
+use prost::encoding::{decode_key, decode_varint, DecodeContext, WireType};
 use prost::DecodeError;
 use std::fmt;
 
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq)]
 pub struct Label {
-    pub name: String,
-    pub value: String,
+    pub name: Bytes,
+    pub value: Bytes,
 }
 
 impl Clear for Label {
@@ -17,42 +19,27 @@ impl Clear for Label {
     }
 }
 
-impl prost::Message for Label {
+impl Label {
     #[allow(unused_variables)]
-    fn encode_raw<B>(&self, buf: &mut B)
-    where
-        B: bytes::BufMut,
-    {
-        if !self.name.is_empty() {
-            prost::encoding::string::encode(1u32, &self.name, buf);
-        }
-        if !self.value.is_empty() {
-            prost::encoding::string::encode(2u32, &self.value, buf);
-        }
-    }
-    #[allow(unused_variables)]
-    fn merge_field<B>(
+    fn merge_field(
         &mut self,
         tag: u32,
         wire_type: prost::encoding::WireType,
-        buf: &mut B,
+        buf: &mut Bytes,
         ctx: prost::encoding::DecodeContext,
-    ) -> Result<(), prost::DecodeError>
-    where
-        B: bytes::Buf,
-    {
+    ) -> Result<(), prost::DecodeError> {
         const STRUCT_NAME: &str = "Label";
         match tag {
             1u32 => {
                 let value = &mut self.name;
-                prost::encoding::string::merge(wire_type, value, buf, ctx).map_err(|mut error| {
+                prost::encoding::bytes::merge(wire_type, value, buf, ctx).map_err(|mut error| {
                     error.push(STRUCT_NAME, "name");
                     error
                 })
             }
             2u32 => {
                 let value = &mut self.value;
-                prost::encoding::string::merge(wire_type, value, buf, ctx).map_err(|mut error| {
+                prost::encoding::bytes::merge(wire_type, value, buf, ctx).map_err(|mut error| {
                     error.push(STRUCT_NAME, "value");
                     error
                 })
@@ -60,31 +47,17 @@ impl prost::Message for Label {
             _ => prost::encoding::skip_field(wire_type, tag, buf, ctx),
         }
     }
-    #[inline]
-    fn encoded_len(&self) -> usize {
-        0 + if self.name != "" {
-            prost::encoding::string::encoded_len(1u32, &self.name)
-        } else {
-            0
-        } + if self.value != "" {
-            prost::encoding::string::encoded_len(2u32, &self.value)
-        } else {
-            0
-        }
-    }
-    fn clear(&mut self) {
-        self.name.clear();
-        self.value.clear();
-    }
 }
+
 impl Default for Label {
     fn default() -> Self {
         Label {
-            name: prost::alloc::string::String::new(),
-            value: prost::alloc::string::String::new(),
+            name: Bytes::new(),
+            value: Bytes::new(),
         }
     }
 }
+
 impl ::core::fmt::Debug for Label {
     fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
         let mut builder = f.debug_struct("Label");
@@ -112,111 +85,6 @@ impl ::core::fmt::Debug for Label {
     }
 }
 
-impl prost::Message for Sample {
-    #[allow(unused_variables)]
-    fn encode_raw<B>(&self, buf: &mut B)
-    where
-        B: bytes::BufMut,
-    {
-        if self.value != 0f64 {
-            prost::encoding::double::encode(1u32, &self.value, buf);
-        }
-        if self.timestamp != 0i64 {
-            prost::encoding::int64::encode(2u32, &self.timestamp, buf);
-        }
-    }
-    #[allow(unused_variables)]
-    fn merge_field<B>(
-        &mut self,
-        tag: u32,
-        wire_type: prost::encoding::WireType,
-        buf: &mut B,
-        ctx: prost::encoding::DecodeContext,
-    ) -> ::core::result::Result<(), prost::DecodeError>
-    where
-        B: prost::bytes::Buf,
-    {
-        const STRUCT_NAME: &str = "Sample";
-        match tag {
-            1u32 => {
-                let value = &mut self.value;
-                prost::encoding::double::merge(wire_type, value, buf, ctx).map_err(|mut error| {
-                    error.push(STRUCT_NAME, "value");
-                    error
-                })
-            }
-            2u32 => {
-                let value = &mut self.timestamp;
-                prost::encoding::int64::merge(wire_type, value, buf, ctx).map_err(|mut error| {
-                    error.push(STRUCT_NAME, "timestamp");
-                    error
-                })
-            }
-            _ => prost::encoding::skip_field(wire_type, tag, buf, ctx),
-        }
-    }
-    #[inline]
-    fn encoded_len(&self) -> usize {
-        0 + if self.value != 0f64 {
-            prost::encoding::double::encoded_len(1u32, &self.value)
-        } else {
-            0
-        } + if self.timestamp != 0i64 {
-            prost::encoding::int64::encoded_len(2u32, &self.timestamp)
-        } else {
-            0
-        }
-    }
-    fn clear(&mut self) {
-        self.value = 0f64;
-        self.timestamp = 0i64;
-    }
-}
-impl ::core::default::Default for Sample {
-    fn default() -> Self {
-        Sample {
-            value: 0f64,
-            timestamp: 0i64,
-        }
-    }
-}
-
-impl fmt::Debug for Sample {
-    fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-        let mut builder = f.debug_struct("Sample");
-        let builder = {
-            let wrapper = {
-                #[allow(non_snake_case)]
-                fn ScalarWrapper<T>(v: T) -> T {
-                    v
-                }
-                ScalarWrapper(&self.value)
-            };
-            builder.field("value", &wrapper)
-        };
-        let builder = {
-            let wrapper = {
-                #[allow(non_snake_case)]
-                fn ScalarWrapper<T>(v: T) -> T {
-                    v
-                }
-                ScalarWrapper(&self.timestamp)
-            };
-            builder.field("timestamp", &wrapper)
-        };
-        builder.finish()
-    }
-}
-
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq)]
-pub struct Sample {
-    pub value: f64,
-    /// timestamp is in ms format, see model/timestamp/timestamp.go for
-    /// conversion from time.Time to Prometheus timestamp.
-    pub timestamp: i64,
-}
-
 impl Clear for Sample {
     fn clear(&mut self) {
         self.value = 0.0;
@@ -240,30 +108,15 @@ impl Clear for TimeSeries {
     }
 }
 
-impl prost::Message for TimeSeries {
+impl TimeSeries {
     #[allow(unused_variables)]
-    fn encode_raw<B>(&self, buf: &mut B)
-    where
-        B: prost::bytes::BufMut,
-    {
-        for msg in &self.labels {
-            prost::encoding::message::encode(1u32, msg, buf);
-        }
-        for msg in &self.samples {
-            prost::encoding::message::encode(2u32, msg, buf);
-        }
-    }
-    #[allow(unused_variables)]
-    fn merge_field<B>(
+    fn merge_field(
         &mut self,
         tag: u32,
         wire_type: prost::encoding::WireType,
-        buf: &mut B,
+        buf: &mut Bytes,
         ctx: prost::encoding::DecodeContext,
-    ) -> Result<(), prost::DecodeError>
-    where
-        B: bytes::Buf,
-    {
+    ) -> Result<(), prost::DecodeError> {
         const STRUCT_NAME: &str = "TimeSeries";
         match tag {
             1u32 => {
@@ -295,7 +148,7 @@ impl prost::Message for TimeSeries {
                     WireType::LengthDelimited,
                     sample,
                     buf,
-                    ctx.clone(),
+                    Default::default(),
                 )
                 .map_err(|mut error| {
                     error.push(STRUCT_NAME, "samples");
@@ -305,15 +158,6 @@ impl prost::Message for TimeSeries {
             }
             _ => prost::encoding::skip_field(wire_type, tag, buf, ctx),
         }
-    }
-    #[inline]
-    fn encoded_len(&self) -> usize {
-        0 + prost::encoding::message::encoded_len_repeated(1u32, &self.labels)
-            + prost::encoding::message::encoded_len_repeated(2u32, &self.samples)
-    }
-    fn clear(&mut self) {
-        self.labels.clear();
-        self.samples.clear();
     }
 }
 impl ::core::default::Default for TimeSeries {
@@ -351,57 +195,41 @@ impl Clear for WriteRequest {
     }
 }
 
-impl prost::Message for WriteRequest {
-    #[allow(unused_variables)]
-    fn encode_raw<B>(&self, buf: &mut B)
-    where
-        B: prost::bytes::BufMut,
-    {
-        for msg in &self.timeseries {
-            prost::encoding::message::encode(1u32, msg, buf);
-        }
-    }
+impl WriteRequest {
+    // todo(hl): maybe use &[u8] can reduce the overhead introduced with Bytes.
+    pub fn merge(&mut self, mut buf: Bytes) -> Result<(), DecodeError> {
+        const STRUCT_NAME: &str = "PromWriteRequest";
+        let ctx = DecodeContext::default();
+        while buf.has_remaining() {
+            let (tag, wire_type) = decode_key(&mut buf)?;
+            assert_eq!(WireType::LengthDelimited, wire_type);
+            match tag {
+                1u32 => {
+                    let series = self.timeseries.push_default();
+                    // decode TimeSeries
+                    let len = decode_varint(&mut buf).map_err(|mut e| {
+                        e.push(STRUCT_NAME, "timeseries");
+                        e
+                    })?;
+                    let remaining = buf.remaining();
+                    if len > remaining as u64 {
+                        return Err(DecodeError::new("buffer underflow"));
+                    }
 
-    #[allow(unused_variables)]
-    fn merge_field<B>(
-        &mut self,
-        tag: u32,
-        wire_type: prost::encoding::WireType,
-        buf: &mut B,
-        ctx: prost::encoding::DecodeContext,
-    ) -> Result<(), prost::DecodeError>
-    where
-        B: bytes::Buf,
-    {
-        const STRUCT_NAME: &str = "WriteRequest";
-        match tag {
-            1u32 => {
-                let series = self.timeseries.push_default();
-                let len = decode_varint(buf).map_err(|mut e| {
-                    e.push(STRUCT_NAME, "timeseries");
-                    e
-                })?;
-                let remaining = buf.remaining();
-                if len > remaining as u64 {
-                    return Err(DecodeError::new("buffer underflow"));
+                    let limit = remaining - len as usize;
+                    while buf.remaining() > limit {
+                        let (tag, wire_type) = decode_key(&mut buf)?;
+                        series.merge_field(tag, wire_type, &mut buf, ctx.clone())?;
+                    }
                 }
-
-                let limit = remaining - len as usize;
-                while buf.remaining() > limit {
-                    let (tag, wire_type) = decode_key(buf)?;
-                    series.merge_field(tag, wire_type, buf, ctx.clone())?;
+                3u32 => {
+                    // todo(hl): metadata are skipped.
+                    prost::encoding::skip_field(wire_type, tag, &mut buf, Default::default())?;
                 }
-                Ok(())
+                _ => prost::encoding::skip_field(wire_type, tag, &mut buf, Default::default())?,
             }
-            _ => prost::encoding::skip_field(wire_type, tag, buf, ctx),
         }
-    }
-    #[inline]
-    fn encoded_len(&self) -> usize {
-        0 + prost::encoding::message::encoded_len_repeated(1u32, &self.timeseries)
-    }
-    fn clear(&mut self) {
-        self.timeseries.clear();
+        Ok(())
     }
 }
 
@@ -413,7 +241,7 @@ impl Default for WriteRequest {
     }
 }
 
-impl ::core::fmt::Debug for WriteRequest {
+impl fmt::Debug for WriteRequest {
     fn fmt(&self, f: &mut ::core::fmt::Formatter) -> fmt::Result {
         let mut builder = f.debug_struct("WriteRequest");
         let builder = {
@@ -450,12 +278,12 @@ mod tests {
             assert_eq!(proto_ts.labels.len(), ts.labels.len());
             assert_eq!(proto_ts.samples.len(), ts.samples.len());
 
-            for idx in 0..proto_ts.labels.len(){
+            for idx in 0..proto_ts.labels.len() {
                 assert_eq!(&proto_ts.labels[idx].name, &ts.labels[idx].name);
                 assert_eq!(&proto_ts.labels[idx].value, &ts.labels[idx].value);
             }
 
-            for idx in 0..proto_ts.samples.len(){
+            for idx in 0..proto_ts.samples.len() {
                 assert_eq!(&proto_ts.samples[idx].value, &ts.samples[idx].value);
                 assert_eq!(&proto_ts.samples[idx].timestamp, &ts.samples[idx].timestamp);
             }
