@@ -4,6 +4,7 @@ use greptime_proto::prometheus::remote::Sample;
 use prost::encoding::{decode_key, decode_varint, DecodeContext, WireType};
 use prost::DecodeError;
 use std::fmt;
+use crate::bytes::merge_bytes;
 
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq)]
@@ -32,14 +33,14 @@ impl Label {
         match tag {
             1u32 => {
                 let value = &mut self.name;
-                prost::encoding::bytes::merge(wire_type, value, buf, ctx).map_err(|mut error| {
+                merge_bytes(value, buf).map_err(|mut error| {
                     error.push(STRUCT_NAME, "name");
                     error
                 })
             }
             2u32 => {
                 let value = &mut self.value;
-                prost::encoding::bytes::merge(wire_type, value, buf, ctx).map_err(|mut error| {
+                merge_bytes(value, buf).map_err(|mut error| {
                     error.push(STRUCT_NAME, "value");
                     error
                 })
