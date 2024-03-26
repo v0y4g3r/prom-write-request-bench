@@ -1,7 +1,8 @@
 use bytes::Bytes;
 use criterion::{criterion_group, criterion_main, Criterion};
-use greptime_proto::prometheus::remote::WriteRequest;
+// use greptime_proto::prometheus::remote::WriteRequest;
 use prost::Message;
+use bench_prom::prom_write_request::WriteRequest;
 
 fn bench_decode_prom_request(c: &mut Criterion) {
     let mut d = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
