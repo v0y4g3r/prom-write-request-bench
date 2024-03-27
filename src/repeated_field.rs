@@ -22,9 +22,7 @@
 /// to leverage the pooling mechanism to avoid frequent heap allocation/deallocation when decoding deeply nested structs.
 use std::borrow::Borrow;
 use std::cmp::Ordering;
-use std::default::Default;
 use std::hash::{Hash, Hasher};
-use std::iter::{FromIterator, IntoIterator};
 use std::ops::{Deref, DerefMut, Index, IndexMut};
 use std::{fmt, slice, vec};
 

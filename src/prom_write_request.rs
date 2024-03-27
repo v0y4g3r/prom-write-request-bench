@@ -1,10 +1,10 @@
+use crate::bytes::merge_bytes;
 use crate::repeated_field::{Clear, RepeatedField};
 use bytes::{Buf, Bytes};
 use greptime_proto::prometheus::remote::Sample;
 use prost::encoding::{decode_key, decode_varint, DecodeContext, WireType};
 use prost::DecodeError;
 use std::fmt;
-use crate::bytes::merge_bytes;
 
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq)]
@@ -22,7 +22,7 @@ impl Clear for Label {
 
 impl Label {
     #[allow(unused_variables)]
-    fn merge_field(
+    unsafe fn merge_field(
         &mut self,
         tag: u32,
         wire_type: prost::encoding::WireType,
@@ -111,7 +111,7 @@ impl Clear for TimeSeries {
 
 impl TimeSeries {
     #[allow(unused_variables)]
-    fn merge_field(
+    unsafe fn merge_field(
         &mut self,
         tag: u32,
         wire_type: prost::encoding::WireType,
@@ -197,8 +197,8 @@ impl Clear for WriteRequest {
 }
 
 impl WriteRequest {
-    // todo(hl): maybe use &[u8] can reduce the overhead introduced with Bytes.
-    pub fn merge(&mut self, mut buf: Bytes) -> Result<(), DecodeError> {
+    // Safety: caller must ensure `buf` outlive current [WriteRequest] instance.
+    pub unsafe fn merge(&mut self, mut buf: Bytes) -> Result<(), DecodeError> {
         const STRUCT_NAME: &str = "PromWriteRequest";
         let ctx = DecodeContext::default();
         while buf.has_remaining() {
@@ -269,7 +269,11 @@ mod tests {
         proto_request.merge(data.clone()).unwrap();
 
         let mut request = WriteRequest::default();
-        request.merge(data).unwrap();
+
+        // Safety: data is dropped at the end of function.
+        unsafe {
+            request.merge(data.clone()).unwrap();
+        }
         assert_eq!(proto_request.timeseries.len(), request.timeseries.len());
 
         for ts_idx in 0..request.timeseries.len() {
@@ -289,5 +293,8 @@ mod tests {
                 assert_eq!(&proto_ts.samples[idx].timestamp, &ts.samples[idx].timestamp);
             }
         }
+
+        // finally drop data to ensure `WriteRequest` will not access invalid memory address.
+        drop(data);
     }
 }
