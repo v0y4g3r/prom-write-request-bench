@@ -1,7 +1,7 @@
 use bench_prom::prom_write_request::WriteRequest;
 use bench_prom::repeated_field::Clear;
 use bytes::Bytes;
-use criterion::{criterion_group, criterion_main, Criterion, black_box};
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 fn bench_decode_prom_request(c: &mut Criterion) {
     let mut d = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -26,10 +26,11 @@ fn bench_decode_prom_request(c: &mut Criterion) {
         });
     c.benchmark_group("slice").bench_function("bytes", |b| {
         let mut data = data.clone();
-        let mut bytes = data.clone();
+
         b.iter(|| {
+            let mut bytes = data.clone();
             for _ in 0..10000 {
-                bytes = bytes.slice(..);
+                bytes = bytes.slice(1..);
             }
             black_box(bytes.len());
         });
