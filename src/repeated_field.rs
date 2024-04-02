@@ -28,6 +28,8 @@ use std::{fmt, slice, vec};
 
 use bytes::Bytes;
 
+use crate::prom_write_request::DefaultAlloc;
+
 /// anything that can be cleared
 pub trait Clear {
     /// Clear this make, make it equivalent to newly created object.
@@ -65,6 +67,10 @@ pub struct RepeatedField<T, A: std::alloc::Allocator = std::alloc::Global> {
 }
 
 impl<T, A: std::alloc::Allocator> RepeatedField<T, A> {
+    pub fn allocator(&self) -> &A {
+        self.vec.allocator()
+    }
+
     /// Return number of elements in this container.
     #[inline]
     pub fn len(&self) -> usize {
@@ -83,6 +89,15 @@ impl<T> Default for RepeatedField<T> {
     fn default() -> RepeatedField<T> {
         RepeatedField {
             vec: Vec::new(),
+            len: 0,
+        }
+    }
+}
+
+impl<T, A: std::alloc::Allocator> DefaultAlloc<A> for RepeatedField<T, A> {
+    fn default(alloc: A) -> Self {
+        RepeatedField {
+            vec: Vec::new_in(alloc),
             len: 0,
         }
     }
@@ -323,13 +338,28 @@ impl<T, A: std::alloc::Allocator> RepeatedField<T, A> {
     }
 }
 
-impl<T: Default + Clear, A:std::alloc::Allocator > RepeatedField<T, A> {
+impl<T: Default + Clear, A: std::alloc::Allocator> RepeatedField<T, A> {
     /// Push default value.
     /// This operation could be faster than `rf.push(Default::default())`,
     /// because it may reuse previously allocated and cleared element.
     pub fn push_default<'a>(&'a mut self) -> &'a mut T {
         if self.len == self.vec.len() {
             self.vec.push(Default::default());
+        } else {
+            self.vec[self.len].clear();
+        }
+        self.len += 1;
+        self.last_mut().unwrap()
+    }
+}
+
+impl<T: DefaultAlloc<A> + Clear, A: std::alloc::Allocator + Copy> RepeatedField<T, A> {
+    /// Push default value.
+    /// This operation could be faster than `rf.push(Default::default())`,
+    /// because it may reuse previously allocated and cleared element.
+    pub fn push_default_alloc<'a>(&'a mut self) -> &'a mut T {
+        if self.len == self.vec.len() {
+            self.vec.push(DefaultAlloc::default(*self.vec.allocator()));
         } else {
             self.vec[self.len].clear();
         }
@@ -409,7 +439,7 @@ impl<'a, T> IntoIterator for RepeatedField<T> {
     }
 }
 
-impl<T: PartialEq, A:std::alloc::Allocator> PartialEq for RepeatedField<T, A> {
+impl<T: PartialEq, A: std::alloc::Allocator> PartialEq for RepeatedField<T, A> {
     #[inline]
     fn eq(&self, other: &RepeatedField<T, A>) -> bool {
         self.as_ref() == other.as_ref()
@@ -505,7 +535,7 @@ impl<'a, T: Copy + 'a> Extend<&'a T> for RepeatedField<T> {
     }
 }
 
-impl<T: fmt::Debug> fmt::Debug for RepeatedField<T> {
+impl<T: fmt::Debug, A: std::alloc::Allocator> fmt::Debug for RepeatedField<T, A> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.as_ref().fmt(f)

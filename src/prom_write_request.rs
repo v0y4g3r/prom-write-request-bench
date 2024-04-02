@@ -95,21 +95,34 @@ impl Clear for Sample {
 
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(PartialEq)]
-pub struct TimeSeries {
+pub struct TimeSeries<A: std::alloc::Allocator> {
     /// For a timeseries to be valid, and for the samples and exemplars
     /// to be ingested by the remote system properly, the labels field is required.
-    pub labels: RepeatedField<Label>,
-    pub samples: RepeatedField<Sample>,
+    pub labels: RepeatedField<Label, A>,
+    pub samples: RepeatedField<Sample, A>,
 }
 
-impl Clear for TimeSeries {
+pub trait DefaultAlloc<A: std::alloc::Allocator> {
+    fn default(alloc: A) -> Self;
+}
+
+impl<A: std::alloc::Allocator + Copy> DefaultAlloc<A> for TimeSeries<A> {
+    fn default(alloc: A) -> Self {
+        TimeSeries {
+            labels: RepeatedField::new_in(alloc),
+            samples: RepeatedField::new_in(alloc),
+        }
+    }
+}
+
+impl<A: std::alloc::Allocator> Clear for TimeSeries<A> {
     fn clear(&mut self) {
         self.labels.clear();
         self.samples.clear();
     }
 }
 
-impl TimeSeries {
+impl<A: std::alloc::Allocator> TimeSeries<A> {
     #[allow(unused_variables)]
     unsafe fn merge_field(
         &mut self,
@@ -161,15 +174,8 @@ impl TimeSeries {
         }
     }
 }
-impl ::core::default::Default for TimeSeries {
-    fn default() -> Self {
-        TimeSeries {
-            labels: ::core::default::Default::default(),
-            samples: ::core::default::Default::default(),
-        }
-    }
-}
-impl fmt::Debug for TimeSeries {
+
+impl<A: std::alloc::Allocator> fmt::Debug for TimeSeries<A> {
     fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
         let mut builder = f.debug_struct("TimeSeries");
         let builder = {
@@ -187,7 +193,7 @@ impl fmt::Debug for TimeSeries {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(PartialEq)]
 pub struct WriteRequest<A: std::alloc::Allocator = std::alloc::Global> {
-    pub timeseries: RepeatedField<TimeSeries, A>,
+    pub timeseries: RepeatedField<TimeSeries<A>, A>,
 }
 
 impl<A: std::alloc::Allocator> Clear for WriteRequest<A> {
@@ -196,7 +202,7 @@ impl<A: std::alloc::Allocator> Clear for WriteRequest<A> {
     }
 }
 
-impl<A: std::alloc::Allocator> WriteRequest<A> {
+impl<A: std::alloc::Allocator + Copy> WriteRequest<A> {
     pub fn new_in(alloc: A) -> Self {
         WriteRequest {
             timeseries: RepeatedField::new_in(alloc),
@@ -211,7 +217,7 @@ impl<A: std::alloc::Allocator> WriteRequest<A> {
             assert_eq!(WireType::LengthDelimited, wire_type);
             match tag {
                 1u32 => {
-                    let series = self.timeseries.push_default();
+                    let series = self.timeseries.push_default_alloc();
                     // decode TimeSeries
                     let len = decode_varint(&mut buf).map_err(|mut e| {
                         e.push(STRUCT_NAME, "timeseries");

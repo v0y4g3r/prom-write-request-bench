@@ -9,16 +9,19 @@ fn bench_decode_prom_request(c: &mut Criterion) {
     d.push("assets");
     d.push("1709380533560664458.data");
     let data = Bytes::from(std::fs::read(d).unwrap());
+    let mut bump_alloc_once = bumpalo::Bump::new();
     let mut bump_alloc = bumpalo::Bump::new();
     let mut request_pooled = WriteRequest::new_in(&bump_alloc);
     c.benchmark_group("decode")
         .bench_function("write_request", |b| {
             b.iter(|| {
-                let mut request = WriteRequest::default();
+                let mut request = WriteRequest::new_in(&bump_alloc_once);
                 let data = data.clone();
                 unsafe {
                     request.merge(data).unwrap();
                 }
+                drop(request);
+                bump_alloc_once.reset();
             });
         })
         .bench_function("pooled_write_request", |b| {
@@ -37,7 +40,7 @@ fn bench_decode_prom_request(c: &mut Criterion) {
     c.benchmark_group("slice")
         .bench_function("bytes", |b| {
             let data = data.clone();
-            b.iter( move || {
+            b.iter(move || {
                 let mut bytes = data.clone();
                 for _ in 0..10000 {
                     bytes = black_box(bytes.slice(0..1));
