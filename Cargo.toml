@@ -9,6 +9,7 @@ crate-type = ["lib"]
 
 [dependencies]
 base64 = "0.22"
+bumpalo = { version="3.15.4", features=["allocator_api"] }
 bytes = "1.5"
 greptime-proto = { git = "https://github.com/GreptimeTeam/greptime-proto", branch = "main" }
 lazy_static = "1.4"
