@@ -94,7 +94,7 @@ impl Clear for Sample {
 }
 
 #[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq)]
+#[derive(PartialEq)]
 pub struct TimeSeries {
     /// For a timeseries to be valid, and for the samples and exemplars
     /// to be ingested by the remote system properly, the labels field is required.
@@ -185,18 +185,23 @@ impl fmt::Debug for TimeSeries {
 }
 
 #[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq)]
-pub struct WriteRequest {
-    pub timeseries: RepeatedField<TimeSeries>,
+#[derive(PartialEq)]
+pub struct WriteRequest<A: std::alloc::Allocator = std::alloc::Global> {
+    pub timeseries: RepeatedField<TimeSeries, A>,
 }
 
-impl Clear for WriteRequest {
+impl<A: std::alloc::Allocator> Clear for WriteRequest<A> {
     fn clear(&mut self) {
         self.timeseries.clear();
     }
 }
 
-impl WriteRequest {
+impl<A: std::alloc::Allocator> WriteRequest<A> {
+    pub fn new_in(alloc: A) -> Self {
+        WriteRequest {
+            timeseries: RepeatedField::new_in(alloc),
+        }
+    }
     // Safety: caller must ensure `buf` outlive current [WriteRequest] instance.
     pub unsafe fn merge(&mut self, mut buf: Bytes) -> Result<(), DecodeError> {
         const STRUCT_NAME: &str = "PromWriteRequest";

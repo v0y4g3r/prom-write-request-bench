@@ -59,12 +59,12 @@ impl Clear for Bytes {
 }
 
 /// Wrapper around vector to avoid deallocations on clear.
-pub struct RepeatedField<T> {
-    vec: Vec<T>,
+pub struct RepeatedField<T, A: std::alloc::Allocator = std::alloc::Global> {
+    vec: Vec<T, A>,
     len: usize,
 }
 
-impl<T> RepeatedField<T> {
+impl<T, A: std::alloc::Allocator> RepeatedField<T, A> {
     /// Return number of elements in this container.
     #[inline]
     pub fn len(&self) -> usize {
@@ -88,23 +88,26 @@ impl<T> Default for RepeatedField<T> {
     }
 }
 
-impl<T> RepeatedField<T> {
+impl<T, A: std::alloc::Allocator> RepeatedField<T, A> {
     /// Create new empty container.
     #[inline]
-    pub fn new() -> RepeatedField<T> {
-        Default::default()
+    pub fn new_in(alloc: A) -> RepeatedField<T, A> {
+        RepeatedField {
+            vec: Vec::new_in(alloc),
+            len: 0,
+        }
     }
 
     /// Create a contained with data from given vec.
     #[inline]
-    pub fn from_vec(vec: Vec<T>) -> RepeatedField<T> {
+    pub fn from_vec(vec: Vec<T, A>) -> RepeatedField<T, A> {
         let len = vec.len();
         RepeatedField { vec, len }
     }
 
     /// Convert data into vec.
     #[inline]
-    pub fn into_vec(self) -> Vec<T> {
+    pub fn into_vec(self) -> Vec<T, A> {
         let mut vec = self.vec;
         vec.truncate(self.len);
         vec
@@ -256,8 +259,8 @@ impl<T> RepeatedField<T> {
     /// assert_eq!(vec, RepeatedField::from(vec![2, 4]));
     /// ```
     pub fn retain<F>(&mut self, f: F)
-        where
-            F: FnMut(&T) -> bool,
+    where
+        F: FnMut(&T) -> bool,
     {
         // suboptimal
         self.vec.truncate(self.len);
@@ -281,7 +284,7 @@ impl<T> RepeatedField<T> {
 
     /// Into owned iterator.
     #[inline]
-    pub fn into_iter(mut self) -> vec::IntoIter<T> {
+    pub fn into_iter(mut self) -> vec::IntoIter<T, A> {
         self.vec.truncate(self.len);
         self.vec.into_iter()
     }
@@ -301,8 +304,8 @@ impl<T> RepeatedField<T> {
     /// Sort elements with given comparator.
     #[inline]
     pub fn sort_by<F>(&mut self, compare: F)
-        where
-            F: Fn(&T, &T) -> Ordering,
+    where
+        F: Fn(&T, &T) -> Ordering,
     {
         self.as_mut_slice().sort_by(compare)
     }
@@ -320,7 +323,7 @@ impl<T> RepeatedField<T> {
     }
 }
 
-impl<T: Default + Clear> RepeatedField<T> {
+impl<T: Default + Clear, A:std::alloc::Allocator > RepeatedField<T, A> {
     /// Push default value.
     /// This operation could be faster than `rf.push(Default::default())`,
     /// because it may reuse previously allocated and cleared element.
@@ -335,19 +338,15 @@ impl<T: Default + Clear> RepeatedField<T> {
     }
 }
 
-impl<T> From<Vec<T>> for RepeatedField<T> {
+impl<T, A: std::alloc::Allocator> From<Vec<T, A>> for RepeatedField<T, A> {
     #[inline]
-    fn from(values: Vec<T>) -> RepeatedField<T> {
-        RepeatedField::from_vec(values)
+    fn from(values: Vec<T, A>) -> RepeatedField<T, A> {
+        RepeatedField::<T, A>::from_vec(values)
     }
 }
 
-impl<'a, T: Clone> From<&'a [T]> for RepeatedField<T> {
-    #[inline]
-    fn from(values: &'a [T]) -> RepeatedField<T> {
-        RepeatedField::from_slice(values)
-    }
-}
+// from slice to RepeatedField is not impled because it would require
+// a extra allocator parameter
 
 impl<T> Into<Vec<T>> for RepeatedField<T> {
     #[inline]
@@ -356,33 +355,23 @@ impl<T> Into<Vec<T>> for RepeatedField<T> {
     }
 }
 
-impl<T: Clone> RepeatedField<T> {
+impl<T: Clone, A: std::alloc::Allocator> RepeatedField<T, A> {
     /// Copy slice data to `RepeatedField`
     #[inline]
-    pub fn from_slice(values: &[T]) -> RepeatedField<T> {
-        RepeatedField::from_vec(values.to_vec())
+    pub fn from_slice(values: &[T], alloc: A) -> RepeatedField<T, A> {
+        RepeatedField::<T, A>::from_vec(values.to_vec_in(alloc))
     }
 
     /// Copy slice data to `RepeatedField`
     #[inline]
-    pub fn from_ref<X: AsRef<[T]>>(values: X) -> RepeatedField<T> {
-        RepeatedField::from_slice(values.as_ref())
+    pub fn from_ref<X: AsRef<[T]>>(values: X, alloc: A) -> RepeatedField<T, A> {
+        RepeatedField::<T, A>::from_slice(values.as_ref(), alloc)
     }
 
     /// Copy this data into new vec.
     #[inline]
-    pub fn to_vec(&self) -> Vec<T> {
-        self.as_ref().to_vec()
-    }
-}
-
-impl<T: Clone> Clone for RepeatedField<T> {
-    #[inline]
-    fn clone(&self) -> RepeatedField<T> {
-        RepeatedField {
-            vec: self.to_vec(),
-            len: self.len(),
-        }
+    pub fn to_vec(&self, alloc: A) -> Vec<T, A> {
+        self.as_ref().to_vec_in(alloc)
     }
 }
 
@@ -420,9 +409,9 @@ impl<'a, T> IntoIterator for RepeatedField<T> {
     }
 }
 
-impl<T: PartialEq> PartialEq for RepeatedField<T> {
+impl<T: PartialEq, A:std::alloc::Allocator> PartialEq for RepeatedField<T, A> {
     #[inline]
-    fn eq(&self, other: &RepeatedField<T>) -> bool {
+    fn eq(&self, other: &RepeatedField<T, A>) -> bool {
         self.as_ref() == other.as_ref()
     }
 }
@@ -455,7 +444,7 @@ impl<T: Hash> Hash for RepeatedField<T> {
     }
 }
 
-impl<T> AsRef<[T]> for RepeatedField<T> {
+impl<T, A: std::alloc::Allocator> AsRef<[T]> for RepeatedField<T, A> {
     #[inline]
     fn as_ref<'a>(&'a self) -> &'a [T] {
         &self.vec[..self.len]
