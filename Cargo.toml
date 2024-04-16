@@ -17,6 +17,9 @@ prost = "0.12"
 [dev-dependencies]
 criterion = "0.5"
 
+[patch.crates-io]
+prost = { git = "https://github.com/landaire/prost", branch = "varint_slice_perf" }
+
 [[bench]]
 name = "prom_decode"
 harness = false
