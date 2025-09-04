@@ -3,7 +3,6 @@ use crate::repeated_field::{Clear, RepeatedField};
 use bytes::{Buf, Bytes};
 use greptime_proto::prometheus::remote::Sample;
 use prost::encoding::{decode_key, decode_varint, DecodeContext, WireType};
-use prost::DecodeError;
 use std::fmt;
 
 pub type RawBytes = &'static [u8];
@@ -29,22 +28,16 @@ impl Label {
         wire_type: prost::encoding::WireType,
         buf: &mut Bytes,
         ctx: prost::encoding::DecodeContext,
-    ) -> Result<(), prost::DecodeError> {
-        const STRUCT_NAME: &str = "Label";
+    ) {
+        // const STRUCT_NAME: &str = "Label";
         match tag {
             1u32 => {
                 let value = &mut self.name;
-                merge_bytes(value, buf).map_err(|mut error| {
-                    error.push(STRUCT_NAME, "name");
-                    error
-                })
+                merge_bytes(value, buf);
             }
             2u32 => {
                 let value = &mut self.value;
-                merge_bytes(value, buf).map_err(|mut error| {
-                    error.push(STRUCT_NAME, "value");
-                    error
-                })
+                merge_bytes(value, buf);
             }
             _ => unreachable!(),
         }
@@ -118,31 +111,32 @@ impl TimeSeries {
         wire_type: prost::encoding::WireType,
         buf: &mut Bytes,
         ctx: prost::encoding::DecodeContext,
-    ) -> Result<(), prost::DecodeError> {
+    ) {
         const STRUCT_NAME: &str = "TimeSeries";
         match tag {
             1u32 => {
                 // decode labels
                 let label = self.labels.push_default();
 
-                let len = decode_varint(buf).map_err(|mut error| {
-                    error.push(STRUCT_NAME, "labels");
-                    error
-                })?;
+                let len = decode_varint(buf)
+                    .map_err(|mut error| {
+                        error.push(STRUCT_NAME, "labels");
+                        error
+                    })
+                    .unwrap();
                 let remaining = buf.remaining();
                 if len > remaining as u64 {
-                    return Err(DecodeError::new("buffer underflow"));
+                    panic!()
                 }
 
                 let limit = remaining - len as usize;
                 while buf.remaining() > limit {
-                    let (tag, wire_type) = decode_key(buf)?;
-                    label.merge_field(tag, wire_type, buf, ctx.clone())?;
+                    let (tag, wire_type) = decode_key(buf).unwrap();
+                    label.merge_field(tag, wire_type, buf, ctx.clone());
                 }
                 if buf.remaining() != limit {
-                    return Err(DecodeError::new("delimited length exceeded"));
+                    panic!("delimited length exceeded")
                 }
-                Ok(())
             }
             2u32 => {
                 let sample = self.samples.push_default();
@@ -152,13 +146,9 @@ impl TimeSeries {
                     buf,
                     Default::default(),
                 )
-                .map_err(|mut error| {
-                    error.push(STRUCT_NAME, "samples");
-                    error
-                })?;
-                Ok(())
+                .unwrap();
             }
-            _ => prost::encoding::skip_field(wire_type, tag, buf, ctx),
+            _ => prost::encoding::skip_field(wire_type, tag, buf, ctx).unwrap(),
         }
     }
 }
@@ -193,33 +183,34 @@ impl Clear for WriteRequest {
 impl WriteRequest {
     /// ## Safety
     /// caller must ensure `buf` outlive current [WriteRequest] instance.
-    pub unsafe fn merge(&mut self, mut buf: Bytes) -> Result<(), DecodeError> {
+    pub unsafe fn merge(&mut self, mut buf: Bytes) {
         const STRUCT_NAME: &str = "PromWriteRequest";
         let ctx = DecodeContext::default();
         while buf.has_remaining() {
-            let (tag, wire_type) = decode_key(&mut buf)?;
+            let (tag, wire_type) = decode_key(&mut buf).unwrap();
             assert_eq!(WireType::LengthDelimited, wire_type);
             if tag == 1u32 {
                 let series = self.timeseries.push_default();
                 // decode TimeSeries
-                let len = decode_varint(&mut buf).map_err(|mut e| {
-                    e.push(STRUCT_NAME, "timeseries");
-                    e
-                })?;
+                let len = decode_varint(&mut buf)
+                    .map_err(|mut e| {
+                        e.push(STRUCT_NAME, "timeseries");
+                        e
+                    })
+                    .unwrap();
                 let remaining = buf.remaining();
                 if len > remaining as u64 {
-                    return Err(DecodeError::new("buffer underflow"));
+                    panic!("buffer underflow")
                 }
                 let limit = remaining - len as usize;
                 while buf.remaining() > limit {
-                    let (tag, wire_type) = decode_key(&mut buf)?;
-                    series.merge_field(tag, wire_type, &mut buf, ctx.clone())?;
+                    let (tag, wire_type) = decode_key(&mut buf).unwrap();
+                    series.merge_field(tag, wire_type, &mut buf, ctx.clone());
                 }
             } else {
-                prost::encoding::skip_field(wire_type, tag, &mut buf, Default::default())?;
+                prost::encoding::skip_field(wire_type, tag, &mut buf, Default::default()).unwrap();
             }
         }
-        Ok(())
     }
 }
 
@@ -253,7 +244,7 @@ mod tests {
 
         // Safety: data is dropped at the end of function.
         unsafe {
-            request.merge(data.clone()).unwrap();
+            request.merge(data.clone());
         }
         assert_eq!(proto_request.timeseries.len(), request.timeseries.len());
 

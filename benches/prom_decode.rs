@@ -15,7 +15,7 @@ fn bench_decode_prom_request(c: &mut Criterion) {
                 let mut request = WriteRequest::default();
                 let data = data.clone();
                 unsafe {
-                    request.merge(data).unwrap();
+                    request.merge(data);
                 }
             });
         })
@@ -24,7 +24,7 @@ fn bench_decode_prom_request(c: &mut Criterion) {
                 request_pooled.clear();
                 let data = data.clone();
                 unsafe {
-                    request_pooled.merge(data).unwrap();
+                    request_pooled.merge(data);
                 }
                 black_box(&request_pooled);
             });
