@@ -19,5 +19,6 @@ pub unsafe fn merge_bytes(value: &mut RawBytes, buf: &mut Bytes) -> Result<(), D
     }
 
     *value = unsafe { slice::from_raw_parts(buf.as_ptr(), len as usize) };
+    buf.advance(len as usize);
     Ok(())
 }
