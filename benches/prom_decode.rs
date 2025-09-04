@@ -1,4 +1,3 @@
-use bench_prom::bytes::split_to;
 use bench_prom::prom_write_request::WriteRequest;
 use bench_prom::repeated_field::Clear;
 use bytes::Bytes;
@@ -27,34 +26,7 @@ fn bench_decode_prom_request(c: &mut Criterion) {
                 unsafe {
                     request_pooled.merge(data).unwrap();
                 }
-            });
-        });
-    c.benchmark_group("slice")
-        .bench_function("bytes", |b| {
-            let data = data.clone();
-            b.iter( move || {
-                let mut bytes = data.clone();
-                for _ in 0..10000 {
-                    bytes = black_box(bytes.slice(0..1));
-                }
-            });
-        })
-        .bench_function("split_to", |b| {
-            let data = data.clone();
-            b.iter(|| {
-                let mut bytes = data.clone();
-                for _ in 0..10000 {
-                    bytes = black_box(unsafe { split_to(&bytes, 1) });
-                }
-            });
-        })
-        .bench_function("slice", |b| {
-            let data = data.clone();
-            let mut slice = data.as_ref();
-            b.iter(move || {
-                for _ in 0..10000 {
-                    slice = black_box(&slice[..1]);
-                }
+                black_box(&request_pooled);
             });
         });
 }

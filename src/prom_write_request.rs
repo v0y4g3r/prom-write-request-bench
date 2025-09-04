@@ -6,18 +6,19 @@ use prost::encoding::{decode_key, decode_varint, DecodeContext, WireType};
 use prost::DecodeError;
 use std::fmt;
 
+pub type RawBytes = &'static [u8];
+
+const DEFAULT: &[u8] = b"";
+
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq)]
 pub struct Label {
-    pub name: Bytes,
-    pub value: Bytes,
+    pub name: RawBytes,
+    pub value: RawBytes,
 }
 
 impl Clear for Label {
-    fn clear(&mut self) {
-        self.value.clear();
-        self.name.clear();
-    }
+    fn clear(&mut self) {}
 }
 
 impl Label {
@@ -45,7 +46,7 @@ impl Label {
                     error
                 })
             }
-            _ => prost::encoding::skip_field(wire_type, tag, buf, ctx),
+            _ => unreachable!(),
         }
     }
 }
@@ -53,8 +54,8 @@ impl Label {
 impl Default for Label {
     fn default() -> Self {
         Label {
-            name: Bytes::new(),
-            value: Bytes::new(),
+            name: DEFAULT,
+            value: DEFAULT,
         }
     }
 }
@@ -94,7 +95,7 @@ impl Clear for Sample {
 }
 
 #[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Default)]
 pub struct TimeSeries {
     /// For a timeseries to be valid, and for the samples and exemplars
     /// to be ingested by the remote system properly, the labels field is required.
@@ -161,14 +162,7 @@ impl TimeSeries {
         }
     }
 }
-impl ::core::default::Default for TimeSeries {
-    fn default() -> Self {
-        TimeSeries {
-            labels: ::core::default::Default::default(),
-            samples: ::core::default::Default::default(),
-        }
-    }
-}
+
 impl fmt::Debug for TimeSeries {
     fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
         let mut builder = f.debug_struct("TimeSeries");
@@ -185,7 +179,7 @@ impl fmt::Debug for TimeSeries {
 }
 
 #[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Default)]
 pub struct WriteRequest {
     pub timeseries: RepeatedField<TimeSeries>,
 }
@@ -197,48 +191,35 @@ impl Clear for WriteRequest {
 }
 
 impl WriteRequest {
-    // Safety: caller must ensure `buf` outlive current [WriteRequest] instance.
+    /// ## Safety
+    /// caller must ensure `buf` outlive current [WriteRequest] instance.
     pub unsafe fn merge(&mut self, mut buf: Bytes) -> Result<(), DecodeError> {
         const STRUCT_NAME: &str = "PromWriteRequest";
         let ctx = DecodeContext::default();
         while buf.has_remaining() {
             let (tag, wire_type) = decode_key(&mut buf)?;
             assert_eq!(WireType::LengthDelimited, wire_type);
-            match tag {
-                1u32 => {
-                    let series = self.timeseries.push_default();
-                    // decode TimeSeries
-                    let len = decode_varint(&mut buf).map_err(|mut e| {
-                        e.push(STRUCT_NAME, "timeseries");
-                        e
-                    })?;
-                    let remaining = buf.remaining();
-                    if len > remaining as u64 {
-                        return Err(DecodeError::new("buffer underflow"));
-                    }
-
-                    let limit = remaining - len as usize;
-                    while buf.remaining() > limit {
-                        let (tag, wire_type) = decode_key(&mut buf)?;
-                        series.merge_field(tag, wire_type, &mut buf, ctx.clone())?;
-                    }
+            if tag == 1u32 {
+                let series = self.timeseries.push_default();
+                // decode TimeSeries
+                let len = decode_varint(&mut buf).map_err(|mut e| {
+                    e.push(STRUCT_NAME, "timeseries");
+                    e
+                })?;
+                let remaining = buf.remaining();
+                if len > remaining as u64 {
+                    return Err(DecodeError::new("buffer underflow"));
                 }
-                3u32 => {
-                    // todo(hl): metadata are skipped.
-                    prost::encoding::skip_field(wire_type, tag, &mut buf, Default::default())?;
+                let limit = remaining - len as usize;
+                while buf.remaining() > limit {
+                    let (tag, wire_type) = decode_key(&mut buf)?;
+                    series.merge_field(tag, wire_type, &mut buf, ctx.clone())?;
                 }
-                _ => prost::encoding::skip_field(wire_type, tag, &mut buf, Default::default())?,
+            } else {
+                prost::encoding::skip_field(wire_type, tag, &mut buf, Default::default())?;
             }
         }
         Ok(())
-    }
-}
-
-impl Default for WriteRequest {
-    fn default() -> Self {
-        WriteRequest {
-            timeseries: Default::default(),
-        }
     }
 }
 
@@ -284,8 +265,8 @@ mod tests {
             assert_eq!(proto_ts.samples.len(), ts.samples.len());
 
             for idx in 0..proto_ts.labels.len() {
-                assert_eq!(&proto_ts.labels[idx].name, &ts.labels[idx].name);
-                assert_eq!(&proto_ts.labels[idx].value, &ts.labels[idx].value);
+                assert_eq!(proto_ts.labels[idx].name.as_bytes(), ts.labels[idx].name);
+                assert_eq!(proto_ts.labels[idx].value.as_bytes(), ts.labels[idx].value);
             }
 
             for idx in 0..proto_ts.samples.len() {
