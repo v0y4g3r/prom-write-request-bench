@@ -1,4 +1,4 @@
-use crate::bytes::merge_bytes;
+use crate::bytes::{decode_varint_unsafe, merge_bytes};
 use crate::repeated_field::{Clear, RepeatedField};
 use bytes::{Buf, Bytes};
 use greptime_proto::prometheus::remote::Sample;
