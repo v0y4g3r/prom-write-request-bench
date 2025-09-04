@@ -1,8 +1,8 @@
-use crate::bytes::{decode_varint_unsafe, merge_bytes};
+use crate::bytes::{decode_key_unsafe, merge_bytes};
 use crate::repeated_field::{Clear, RepeatedField};
 use bytes::{Buf, Bytes};
 use greptime_proto::prometheus::remote::Sample;
-use prost::encoding::{decode_key, decode_varint, DecodeContext, WireType};
+use prost::encoding::{decode_varint, DecodeContext, WireType};
 use prost::DecodeError;
 use std::fmt;
 
@@ -136,7 +136,7 @@ impl TimeSeries {
 
                 let limit = remaining - len as usize;
                 while buf.remaining() > limit {
-                    let (tag, wire_type) = decode_key(buf)?;
+                    let (tag, wire_type) = decode_key_unsafe(buf)?;
                     label.merge_field(tag, wire_type, buf, ctx.clone())?;
                 }
                 if buf.remaining() != limit {
@@ -197,7 +197,7 @@ impl WriteRequest {
         const STRUCT_NAME: &str = "PromWriteRequest";
         let ctx = DecodeContext::default();
         while buf.has_remaining() {
-            let (tag, wire_type) = decode_key(&mut buf)?;
+            let (tag, wire_type) = decode_key_unsafe(&mut buf)?;
             assert_eq!(WireType::LengthDelimited, wire_type);
             if tag == 1u32 {
                 let series = self.timeseries.push_default();
@@ -212,7 +212,7 @@ impl WriteRequest {
                 }
                 let limit = remaining - len as usize;
                 while buf.remaining() > limit {
-                    let (tag, wire_type) = decode_key(&mut buf)?;
+                    let (tag, wire_type) = decode_key_unsafe(&mut buf)?;
                     series.merge_field(tag, wire_type, &mut buf, ctx.clone())?;
                 }
             } else {

@@ -1,5 +1,6 @@
 use crate::prom_write_request::RawBytes;
 use bytes::{Buf, Bytes};
+use prost::encoding::{decode_varint, WireType, MIN_TAG};
 use prost::DecodeError;
 use std::slice;
 
@@ -31,4 +32,20 @@ pub fn decode_varint_unsafe(data: &mut Bytes) -> u64 {
     let varint_part = b & (msbs ^ msbs.wrapping_sub(1));
     data.advance((len / 8) as usize);
     varint_part
+}
+
+/// Decodes a Protobuf field key, which consists of a wire type designator and
+/// the field tag.
+#[inline(always)]
+pub fn decode_key_unsafe(buf: &mut Bytes) -> Result<(u32, WireType), DecodeError> {
+    let key = (buf[0]) as u64;
+    buf.advance(1);
+    let wire_type = WireType::try_from(key & 0x07)?;
+    let tag = key as u32 >> 3;
+
+    if tag < MIN_TAG {
+        return Err(DecodeError::new("invalid tag value: 0"));
+    }
+
+    Ok((tag, wire_type))
 }
